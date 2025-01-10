@@ -16,11 +16,11 @@ from homeassistant.components.climate.const import (
     HVAC_MODE_AUTO,
     HVAC_MODE_COOL,
     CURRENT_HVAC_OFF,
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_COOL,
-    CURRENT_HVAC_IDLE,
-    SUPPORT_TARGET_TEMPERATURE,
-    SUPPORT_PRESET_MODE,
+    HVACAction.HEATING,
+    HVACAction.COOLING,
+    HVACAction.IDLE,
+    ClimateEntityFeature.TARGET_TEMPERATURE,
+    ClimateEntityFeature.PRESET_MODE,
     PRESET_BOOST,
 )
 from homeassistant.const import (
