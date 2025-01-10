@@ -2,18 +2,18 @@
   "domain": "heatapp_local",
   "name": "heatapp_local",
   "codeowners": [
-    "@sfstar"
+    "@mauriello100"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/sfstar/hass-heatapp_local",
+  "documentation": "https://github.com/mauriello100/hass-heatapp_local",
   "homekit": {},
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/sfstar/hass-heatapp_local/issues",
+  "issue_tracker": "https://github.com/mauriello100/hass-heatapp_local/issues",
   "requirements": [
     "py-heatapp-de==0.0.1.42"
   ],
   "ssdp": [],
-  "version": "0.0.1",
+  "version": "0.0.2",
   "zeroconf": []
 }
