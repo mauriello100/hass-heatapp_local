@@ -1,5 +1,5 @@
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.typing import HomeAssistantType
+from homeassistant.core import HomeAssistant
 
 from .const import CONF_USER, CONF_PASSWORD, CONF_HOST
 
@@ -9,18 +9,10 @@ from heatapp.sceneManager import SceneManager
 from homeassistant import config_entries
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
-    HVAC_MODE_HEAT,
-    HVAC_MODE_OFF,
-    HVAC_MODE_AUTO,
-    HVAC_MODE_COOL,
-    CURRENT_HVAC_OFF,
-    HVACAction.HEATING,
-    HVACAction.COOLING,
-    HVACAction.IDLE,
-    ClimateEntityFeature.TARGET_TEMPERATURE,
-    ClimateEntityFeature.PRESET_MODE,
+    ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
     PRESET_BOOST,
 )
 from homeassistant.const import (
@@ -28,7 +20,7 @@ from homeassistant.const import (
     ATTR_TEMPERATURE,
     CONF_CLIENT_ID,
     CONF_CLIENT_SECRET,
-    TEMP_CELSIUS,
+    UnitOfTemperature,
 )
 
 import datetime
@@ -45,7 +37,7 @@ from .const import (
 )
 import logging
 
-SUPPORT_FLAGS = SUPPORT_TARGET_TEMPERATURE | SUPPORT_PRESET_MODE
+SUPPORT_FLAGS = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -118,7 +110,7 @@ async def async_setup_entry(    hass: HomeAssistant,
 
 
 #class HeatAppClimateEntity(ClimateEntity):
-class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
+class HeatAppClimateEntity(CoordinatorEntity):
     """Representation of a HeatApp Thermostat device."""
 
 #    def __init__(self, data, apiObject, scene, hass):
@@ -214,7 +206,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def hvac_modes(self):
         """Return the list of available hvac operation modes."""
-        return [HVAC_MODE_HEAT, HVAC_MODE_OFF, HVAC_MODE_COOL, HVAC_MODE_AUTO]
+        return [HEAT,OFF,AUTO,COOL]  
 
     @property
     def preset_mode(self):
