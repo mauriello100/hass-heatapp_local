@@ -1,14 +1,12 @@
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-
 from .const import CONF_USER, CONF_PASSWORD, CONF_HOST
-
 from heatapp.apiMethods import ApiMethods
 from heatapp.login import Login
 from heatapp.sceneManager import SceneManager
 from homeassistant import config_entries
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     ClimateEntityFeature,
     HVACAction,
@@ -110,7 +108,7 @@ async def async_setup_entry(    hass: HomeAssistant,
 
 
 #class HeatAppClimateEntity(ClimateEntity):
-class HeatAppClimateEntity(CoordinatorEntity):
+class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     """Representation of a HeatApp Thermostat device."""
 
 #    def __init__(self, data, apiObject, scene, hass):
@@ -165,7 +163,7 @@ class HeatAppClimateEntity(CoordinatorEntity):
     @property
     def temperature_unit(self):
         """Return the unit of measurement which this thermostat uses."""
-        return TEMP_CELSIUS
+        return UnitOfTemperature.CELSIUS
 
     @property
     def target_temperature(self):
@@ -206,7 +204,7 @@ class HeatAppClimateEntity(CoordinatorEntity):
     @property
     def hvac_modes(self):
         """Return the list of available hvac operation modes."""
-        return [HEAT,OFF,AUTO,COOL]  
+        return [HVACMode.HEAT,HVACMode.OFF,HVACMode.AUTO,HVACMode.COOL]  
 
     @property
     def preset_mode(self):
@@ -352,30 +350,32 @@ class HeatAppClimateEntity(CoordinatorEntity):
 #        if boostMember == True:
 #            return 
 
+
+# HVACMode.HEAT,HVACMode.OFF,HVACMode.AUTO,HVACMode.COOL
     def determine_mode_membership(self):
         _LOGGER.info("active scene %s", self._activeMode)
         if self._activePreset == PRESET_NONE:
             if self.coordinator.data[self.idx]["data"]["actualTemperature"] < self.coordinator.data[self.idx]["data"]["desiredTemperature"]:
-                self._activeMode = HVAC_MODE_HEAT
+                self._activeMode = HVACMode.HEAT
             elif self.coordinator.data[self.idx]["data"]["actualTemperature"] > self.coordinator.data[self.idx]["data"]["desiredTemperature"]:
-                self._activeMode = HVAC_MODE_COOL
+                self._activeMode = HVACMode.COOL
             elif self.coordinator.data[self.idx]["data"]["actualTemperature"] == self.coordinator.data[self.idx]["data"]["desiredTemperature"]:
-                self._activeMode = HVAC_MODE_OFF
+                self._activeMode = HVACMode.OFF
             
         elif self._activePreset == PRESET_PARTY:
-            self._activeMode = HVAC_MODE_HEAT 
+            self._activeMode = HVACMode.HEAT 
 
         elif self._activePreset == PRESET_HOLIDAY:
-            self._activeMode = HVAC_MODE_OFF
+            self._activeMode = HVACMode.OFF
             
         elif self._activePreset == PRESET_GO:
-            self._activeMode = HVAC_MODE_OFF
+            self._activeMode = HVACMode.OFF
             
         elif self._activePreset == PRESET_STANDBY:
-            self._activeMode = HVAC_MODE_OFF
+            self._activeMode = HVACMode.OFF
             
         elif self._activePreset == PRESET_BOOST:
-            self._activeMode = HVAC_MODE_HEAT
+            self._activeMode = HVACMode.HEAT
         
         
     async def async_set_temperature(self, **kwargs):
