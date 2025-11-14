@@ -11,7 +11,8 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/mauriello100/hass-heatapp_local/issues",
   "requirements": [
-    "py-heatapp-de==0.0.1.42"
+    "py-heatapp-de==0.0.1.42",
+    "pymodbus>=3.6.2,<4"
   ],
   "ssdp": [],
   "version": "0.0.2",
