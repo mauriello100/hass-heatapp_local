@@ -9,7 +9,7 @@ from collections import OrderedDict
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from pymodbus.payload import BinaryPayloadDecoder except ModuleNotFoundError as exc: raise ImportError( "pymodbus.payload not found. Ensure manifest requires pymodbus>=3.6,<4 and restart Home Assistant." ) from exc
+from pymodbus.payload import BinaryPayloadDecoder except ModuleNotFoundError as exc: raise ImportError( "pymodbus.payload.BinaryPayloadDecoder not found. Ensure manifest requires " "pymodbus>=3.8.3,<4 and restart Home Assistant to install requirements." ) from exc
 from pymodbus.constants import Endian
 from pymodbus.register_read_message import ReadHoldingRegistersResponse
 
