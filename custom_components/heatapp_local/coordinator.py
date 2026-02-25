@@ -9,8 +9,7 @@ from collections import OrderedDict
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from pymodbus.constants import Endian
-from pymodbus.payload import BinaryPayloadDecoder
+from pymodbus.payload import BinaryPayloadDecoder, Endian
 from pymodbus.register_read_message import ReadHoldingRegistersResponse
 
 from datetime import timedelta
