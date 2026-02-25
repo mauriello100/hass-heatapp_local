@@ -49,10 +49,7 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
     def checkpymodbus(self) -> bool:
         """Return True if pymodbus is importable, otherwise log and return False."""
         try:
-            import pymodbus as _pmb  # noqa: F401
-            from pymodbus.payload import BinaryPayloadDecoder  # noqa: F401
-            from pymodbus.constants import Endian  # noqa: F401
-            from pymodbus.register_read_message import ReadHoldingRegistersResponse  # noqa: F401
+            import pymodbus as _pmb  
             _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version__", "unknown"))
             return True
         except Exception as e:
