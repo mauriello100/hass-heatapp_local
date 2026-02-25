@@ -52,11 +52,17 @@ sceneManager = None
 coordinator = None
 async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry, async_add_entities):
     #TODO add http prepend to conf host saved value 
-    loginManager = Login("http://" + config_entry.data[CONF_HOST])
+    raw_host = str(config_entry.data[CONF_HOST]).strip() 
+    if raw_host.startswith(("http://", "https://")): base_url = raw_host.rstrip("/") else: base_url = f"http://{raw_host.rstrip('/')}" loginManager = Login(base_url)
     host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
     base_url = f"http://{host_clean}" 
     loginManager = Login(host_clean) 
-    credentials = await hass.async_add_executor_job(loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD])
+    try: 
+        credentials = await hass.async_add_executor_job( loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD] ) 
+        except Exception as exc: 
+            _LOGGER.error("Authorization failed against %s: %s", base_url, exc) 
+            return False
+    
     api = ApiMethods(credentials, base_url)
     sceneManager = SceneManager(api)
     # heatapp_coordinator: heatAppDeviceUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
