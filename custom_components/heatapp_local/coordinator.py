@@ -79,7 +79,7 @@ def checkpymodbus(self) -> bool:
 async def _async_update_data(self) -> dict:
     """Fetch all device and sensor data from api."""
     data = ""
-        """Get the latest data from heatapp gateway"""
+    """Get the latest data from heatapp gateway"""
     return None
 #         self.logger.debug("Fetching heatapp data")
 #         self.logger.debug(self.decodeInfo)
