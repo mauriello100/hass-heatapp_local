@@ -53,8 +53,8 @@ coordinator = None
 async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry, async_add_entities):
     #TODO add http prepend to conf host saved value 
     loginManager = Login("http://" + config_entry.data[CONF_HOST])
-    credentials = await hass.async_add_executor_job(loginManager.authorize, config_entry.options[CONF_USER], config_entry.options[CONF_PASSWORD])
-    api = ApiMethods(credentials, "http://" + config_entry.options[CONF_HOST])
+    credentials = await hass.async_add_executor_job(loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD])
+    api = ApiMethods(credentials, "http://" + config_entry.data[CONF_HOST])
     sceneManager = SceneManager(api)
     heatapp_coordinator: heatAppDeviceUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     """Config entry example."""
