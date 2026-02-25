@@ -53,10 +53,13 @@ coordinator = None
 async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry, async_add_entities):
     #TODO add http prepend to conf host saved value 
     loginManager = Login("http://" + config_entry.data[CONF_HOST])
+    host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
+    base_url = f"http://{host_clean}" 
+    loginManager = Login(host_clean) 
     credentials = await hass.async_add_executor_job(loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD])
-    api = ApiMethods(credentials, "http://" + config_entry.data[CONF_HOST])
+    api = ApiMethods(credentials, base_url)
     sceneManager = SceneManager(api)
-    heatapp_coordinator: heatAppDeviceUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    # heatapp_coordinator: heatAppDeviceUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
     """Config entry example."""
     # assuming API object stored here by __init__.py
     #api = hass.data[DOMAIN][entry.entry_id]
@@ -135,7 +138,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         )
 
     def getTodaysSchedule(self):
-        if self._schedulePeriodsForRoom["success"]:
+        # if self._schedulePeriodsForRoom["success"]:
+        if getattr(self, "_schedulePeriodsForRoom", None) and self._schedulePeriodsForRoom.get("success"):            
             weekDayIndex = datetime.datetime.now().weekday()
             #Every weekday has an entry in the switching times array. Therefore, an offset needs to be applied to return the correct results
             listStartIndex = weekDayIndex * 3
@@ -297,7 +301,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             desiredTempDay2Schedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem["type"] == "L"), None) #any(elem["type"] == "L" for elem in schedulePeriodsToday) #L might not be correct
             desiredTempNightSchedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem["type"] == "N"), None) #any(elem["type"] == "N" for elem in schedulePeriodsToday) #N might not be correct
         else:
-            _LOGGER.warn("Unable to retrieve the schedule periods for today")
+            _LOGGER.warning("Unable to retrieve the schedule periods for today")
 
         if desiredTempDaySchedule is not None:
             #check current roomstatus matches the status code expected for this schedule and then skip
@@ -345,7 +349,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             self._activePreset = PRESET_NONE
             _LOGGER.info("Room has manual / schema mode active as scene for room %s", self.coordinator.data[self.idx]["data"]["id"])
         else:
-            _LOGGER.warn("The room %s has entered an unknown preset please inform the developer (give the dev the following code %s). This will default to the none preset until fixed", self.coordinator.data[self.idx]["data"]["name"], roomstatus)
+            _LOGGER.warning("The room %s has entered an unknown preset please inform the developer (give the dev the following code %s). This will default to the none preset until fixed", self.coordinator.data[self.idx]["data"]["name"], roomstatus)
             self._activePreset = PRESET_NONE
 #        _LOGGER.info("active scene %s", self._activeMode)
 #        boostMember = self._sceneManager.isMemberOfScene(roomId, PRESET_BOOST)
@@ -385,7 +389,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        self.hass.async_add_executor_job(
+        await self.hass.async_add_executor_job(
             self._apiObject.setTemp, temperature, self.coordinator.data[self.idx]["data"]["id"]
         )
         #self.coordinator.data[self.idx]["data"]["desiredTemperature"] = temperature
@@ -417,6 +421,11 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             return
         if hvac_mode == HVAC_MODE_OFF:
             await self.turn_off()
+        if hvac_mode == HVACMode.HEAT:
+            await self.turn_on()
+            return
+        if hvac_mode == HVACMode.OFF:
+            await self.turn_off()    
         # TODO implement
         #if hvac_mode == HVAC_MODE_HEAT:
         #    await self._heater.turn_on()
