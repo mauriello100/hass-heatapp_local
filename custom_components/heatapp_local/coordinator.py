@@ -37,20 +37,21 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.warning("pymodbus not available yet: %r", e)
         return False
     
-    def __init__(
+def __init__(
         self,
         hass: HomeAssistant,
         host: str,
         user: str,
         password: str,
         interval: int,
-
-
-
-    ) -> None:
+) -> None:
         """Initialize Update Coordinator."""
-
-        super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=timedelta(seconds=interval))
+        super().__init__(
+            hass, 
+            _LOGGER, 
+            name=DOMAIN, 
+            update_interval=timedelta(seconds=interval),
+        )
         self.api = HeatappHub(hass, host, user, password)
         # self.api.connect()
         self.interval = interval
@@ -75,12 +76,11 @@ def checkpymodbus(self) -> bool:
     #     data = await self._async_update_data()
     #     self.async_set_updated_data(data)
 
-
-    async def _async_update_data(self) -> dict:
-        """Fetch all device and sensor data from api."""
-        data = ""
+async def _async_update_data(self) -> dict:
+    """Fetch all device and sensor data from api."""
+    data = ""
         """Get the latest data from heatapp gateway"""
-        return None
+    return None
 #         self.logger.debug("Fetching heatapp data")
 #         self.logger.debug(self.decodeInfo)
         
