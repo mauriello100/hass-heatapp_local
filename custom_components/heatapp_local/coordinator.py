@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import logging
+import logging 
 
 from .hub import HeatappHub
 
@@ -23,28 +23,15 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
     """Gather data for the energy device."""
 
     api: HeatappHub
-
-def checkpymodbus(self) -> bool:
-    """Return True if pymodbus is importable, otherwise log and return False."""
-    try:
-        import pymodbus as _pmb
-        from pymodbus.payload import BinaryPayloadDecoder
-        from pymodbus.constants import Endian
-        from pymodbus.register_read_message import ReadHoldingRegistersResponse
-        _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version__", "unknown"))
-        return True
-    except Exception as e:
-        _LOGGER.warning("pymodbus not available yet: %r", e)
-        return False
-    
-def __init__(
+   
+    def __init__(
         self,
         hass: HomeAssistant,
         host: str,
         user: str,
         password: str,
         interval: int,
-) -> None:
+    ) -> None:
         """Initialize Update Coordinator."""
         super().__init__(
             hass, 
@@ -59,28 +46,26 @@ def __init__(
         # Non-fatal check to see if pymodbus is available; logs result
         self._pymodbus_ok = self.checkpymodbus()
 
-def checkpymodbus(self) -> bool:
-    """Return True if pymodbus is importable, otherwise log and return False."""
-    try:
-        import pymodbus as _pmb  # noqa: F401
-        from pymodbus.payload import BinaryPayloadDecoder  # noqa: F401
-        from pymodbus.constants import Endian  # noqa: F401
-        from pymodbus.register_read_message import ReadHoldingRegistersResponse  # noqa: F401
-        _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version__", "unknown"))
-        return True
-    except Exception as e:
-        _LOGGER.warning("pymodbus not available yet: %r", e)
-        return False
+    def checkpymodbus(self) -> bool:
+        """Return True if pymodbus is importable, otherwise log and return False."""
+        try:
+            import pymodbus as _pmb  # noqa: F401
+            from pymodbus.payload import BinaryPayloadDecoder  # noqa: F401
+            from pymodbus.constants import Endian  # noqa: F401
+            from pymodbus.register_read_message import ReadHoldingRegistersResponse  # noqa: F401
+            _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version__", "unknown"))
+            return True
+        except Exception as e:
+            _LOGGER.warning("pymodbus not available yet: %r", e)
+            return False
 
     # async def force_update_data(self) -> None:
     #     data = await self._async_update_data()
     #     self.async_set_updated_data(data)
 
-async def _async_update_data(self) -> dict:
-    """Fetch all device and sensor data from api."""
-    data = ""
-    """Get the latest data from heatapp gateway"""
-    return None
+    async def _async_update_data(self) -> dict:
+        data = ""
+        return None
 #         self.logger.debug("Fetching heatapp data")
 #         self.logger.debug(self.decodeInfo)
         
