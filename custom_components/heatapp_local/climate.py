@@ -52,7 +52,7 @@ sceneManager = None
 coordinator = None
 async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry, async_add_entities):
     #TODO add http prepend to conf host saved value 
-    loginManager = Login("http://" + config_entry.options[CONF_HOST])
+    loginManager = Login("http://" + config_entry.data[CONF_HOST])
     credentials = await hass.async_add_executor_job(loginManager.authorize, config_entry.options[CONF_USER], config_entry.options[CONF_PASSWORD])
     api = ApiMethods(credentials, "http://" + config_entry.options[CONF_HOST])
     sceneManager = SceneManager(api)
