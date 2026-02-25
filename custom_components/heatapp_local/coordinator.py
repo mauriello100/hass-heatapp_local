@@ -44,6 +44,22 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
         # self.api.connect()
         self.interval = interval
 
+        # Non-fatal check to see if pymodbus is available; logs result
+        self._pymodbus_ok = self.checkpymodbus()
+
+def checkpymodbus(self) -> bool:
+    """Return True if pymodbus is importable, otherwise log and return False."""
+    try:
+        import pymodbus as _pmb  # noqa: F401
+        from pymodbus.payload import BinaryPayloadDecoder  # noqa: F401
+        from pymodbus.constants import Endian  # noqa: F401
+        from pymodbus.register_read_message import ReadHoldingRegistersResponse  # noqa: F401
+        _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version__", "unknown"))
+        return True
+    except Exception as e:
+        _LOGGER.warning("pymodbus not available yet: %r", e)
+        return False
+
     # async def force_update_data(self) -> None:
     #     data = await self._async_update_data()
     #     self.async_set_updated_data(data)
