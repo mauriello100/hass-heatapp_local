@@ -29,7 +29,9 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
     config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-
+    
+    self._check_pymodbus()
+    
     return True
 
 
