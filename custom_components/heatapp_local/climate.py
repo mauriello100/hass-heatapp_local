@@ -118,7 +118,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         super().__init__(coordinator)
         self.idx = heatappRoomData
         #Ideally this should be done in a larger interval than the standard update interval or triggered by an service call
-        self.initOneTimeInformation()
+        self.hass.async_create_task(self.initOneTimeInformation()) 
+        #self.initOneTimeInformation()
         #self._data = data
         self._apiObject = apiObject
         self._sceneManager = scene
@@ -135,6 +136,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
 
     def getTodaysSchedule(self):
         if self._schedulePeriodsForRoom["success"]:
+            weekDayIndex = datetime.datetime.now().weekday()
             #Every weekday has an entry in the switching times array. Therefore, an offset needs to be applied to return the correct results
             listStartIndex = weekDayIndex * 3
             return self._schedulePeriodsForRoom["switchingtimes"][listStartIndex:listStartIndex+3]
