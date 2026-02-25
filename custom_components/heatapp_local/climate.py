@@ -57,9 +57,9 @@ async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry
         base_url = raw_host.rstrip("/")
     else:
         base_url = f"http://{raw_host.rstrip('/')}"
-    host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
-    base_url = f"http://{host_clean}" 
-    loginManager = Login(base_url)
+    # host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
+    # base_url = f"http://{host_clean}" 
+    # loginManager = Login(base_url)
     try:
         credentials = await hass.async_add_executor_job(
             loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD]
@@ -132,7 +132,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         super().__init__(coordinator)
         self.idx = heatappRoomData
         #Ideally this should be done in a larger interval than the standard update interval or triggered by an service call
-        self.hass.async_create_task(self.initOneTimeInformation()) 
+        #self.hass.async_create_task(self.initOneTimeInformation()) 
         #self.initOneTimeInformation()
         #self._data = data
         self._apiObject = apiObject
@@ -143,6 +143,14 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         _LOGGER.info("data: %s", self.coordinator.data[self.idx])
         #_LOGGER.info("initializing thermostat: %s", self._data["data"]["name"])
 
+    async def async_added_to_hass(self): 
+        await super().async_added_to_hass() 
+        try: 
+            await self.initOneTimeInformation()
+        except Exception as exc: 
+            _LOGGER.warning( "Failed to fetch switching times for %s: %s", self.coordinator.data[self.idx]["name"], exc ) 
+            self._schedulePeriodsForRoom = {"success": False}
+            
     async def initOneTimeInformation(self):
         self._schedulePeriodsForRoom = await self.hass.async_add_executor_job(
             self._apiObject.getSwitchingTimes, self.coordinator.data[self.idx]["data"]["name"], self.coordinator.data[self.idx]["data"]["id"]
