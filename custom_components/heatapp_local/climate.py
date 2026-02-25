@@ -52,16 +52,21 @@ sceneManager = None
 coordinator = None
 async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry, async_add_entities):
     #TODO add http prepend to conf host saved value 
-    raw_host = str(config_entry.data[CONF_HOST]).strip() 
-    if raw_host.startswith(("http://", "https://")): base_url = raw_host.rstrip("/") else: base_url = f"http://{raw_host.rstrip('/')}" loginManager = Login(base_url)
+    raw_host = str(config_entry.data[CONF_HOST]).strip()
+    if raw_host.startswith(("http://", "https://")):
+        base_url = raw_host.rstrip("/")
+    else:
+        base_url = f"http://{raw_host.rstrip('/')}"
     host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
     base_url = f"http://{host_clean}" 
-    loginManager = Login(host_clean) 
-    try: 
-        credentials = await hass.async_add_executor_job( loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD] ) 
-        except Exception as exc: 
-            _LOGGER.error("Authorization failed against %s: %s", base_url, exc) 
-            return False
+    loginManager = Login(base_url)
+    try:
+        credentials = await hass.async_add_executor_job(
+            loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD]
+        )
+    except Exception as exc:
+        _LOGGER.error("Authorization failed against %s: %s", base_url, exc)
+        return False
     
     api = ApiMethods(credentials, base_url)
     sceneManager = SceneManager(api)
@@ -75,7 +80,7 @@ async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry
         This is the place to pre-process the data to lookup tables
         so entities can quickly look up their data.
         """
-        devs = []
+        
         roomData = await hass.async_add_executor_job(
             api.getRoomsList
             )
@@ -267,27 +272,15 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             return time >= time_range[0] or time <= time_range[1]
         return time_range[0] <= time <= time_range[1]
     
-    def is_between_obj(self,time, range_start, range_end):
-        #return datetime.time(time) < datetime.time(range_start) and datetime.time(time) <= datetime.time(range_end)
-        #is_between = datetime.time(range_start)  < datetime.time(time) < datetime.time(range_end)
-        #return is_between
-        # Time Now
-#        now = datetime.datetime.now().time()
-        # Format the datetime string
-#        time_format = '%Y-%m-%d %H:%M:%S'
+    def is_between_obj(self, time, range_start, range_end):
         time_format = '%H:%M'
-        # Convert the start and end datetime to just time
-#        start = datetime.datetime.strptime(start, time_format).time()
-#        end = datetime.datetime.strptime(end, time_format).time()
         range_start = datetime.datetime.strptime(range_start, time_format).time()
         range_end = datetime.datetime.strptime(range_end, time_format).time()
-        #time = datetime.datetime.strptime(time, time_format).time()
-        is_between = False
-        is_between |= range_start <= time <= range_end
-        is_between |= range_end <= range_start and (range_start <= time or time <= range_end)
+        return (range_start <= time <= range_end) or (
+            range_end <= range_start and (range_start <= time or time <= range_end)
+        )
 
-
-    async def determine_if_device_is_following_schema(self):
+    def determine_if_device_is_following_schema(self):
         currentWeekdayIndex = datetime.datetime.now().weekday()
         currentTime = datetime.datetime.now().time()
         
@@ -422,23 +415,12 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
 
     async def async_set_hvac_mode(self, hvac_mode):
         """Set new target hvac mode."""
-        if hvac_mode == HVAC_MODE_HEAT:
-            await self.turn_on()
-            return
-        if hvac_mode == HVAC_MODE_OFF:
-            await self.turn_off()
         if hvac_mode == HVACMode.HEAT:
             await self.turn_on()
             return
         if hvac_mode == HVACMode.OFF:
-            await self.turn_off()    
-        # TODO implement
-        #if hvac_mode == HVAC_MODE_HEAT:
-        #    await self._heater.turn_on()
-        #    return
-        #if hvac_mode == HVAC_MODE_OFF:
-        #    await self._heater.turn_off()
-
+            await self.turn_off()
+            
 #    async def async_update(self):
 #        """Retrieve latest state."""
 #        result = await self.hass.async_add_executor_job(
