@@ -24,7 +24,18 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
 
     api: HeatappHub
 
-    def checkpymodbus(self) -> bool: try: import pymodbus as _pmb from pymodbus.payload import BinaryPayloadDecoder from pymodbus.constants import Endian from pymodbus.register_read_message import ReadHoldingRegistersResponse _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version", "unknown")) return True except Exception as e: _LOGGER.warning("pymodbus not available yet: %r", e) return False
+    def checkpymodbus(self) -> bool:
+    """Return True if pymodbus is importable, otherwise log and return False."""
+    try:
+        import pymodbus as _pmb
+        from pymodbus.payload import BinaryPayloadDecoder
+        from pymodbus.constants import Endian
+        from pymodbus.register_read_message import ReadHoldingRegistersResponse
+        _LOGGER.info("pymodbus available, version: %s", getattr(_pmb, "__version__", "unknown"))
+        return True
+    except Exception as e:
+        _LOGGER.warning("pymodbus not available yet: %r", e)
+        return False
     
     def __init__(
         self,
