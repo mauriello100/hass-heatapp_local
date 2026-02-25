@@ -24,7 +24,7 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
 
     api: HeatappHub
 
-    def checkpymodbus(self) -> bool:
+def checkpymodbus(self) -> bool:
     """Return True if pymodbus is importable, otherwise log and return False."""
     try:
         import pymodbus as _pmb
