@@ -59,7 +59,7 @@ async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry
         base_url = f"http://{raw_host.rstrip('/')}"
     # host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
     # base_url = f"http://{host_clean}" 
-    # loginManager = Login(base_url)
+    loginManager = Login(base_url)
     try:
         credentials = await hass.async_add_executor_job(
             loginManager.authorize, config_entry.data[CONF_USER], config_entry.data[CONF_PASSWORD]
