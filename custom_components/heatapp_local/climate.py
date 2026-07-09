@@ -302,5 +302,13 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         return "Manual"
 
     def determine_preset_membership(self):
+        """Determine if the room is part of a specific scene/preset."""
         try:
             roomstatus = self.coordinator.data[self.idx]["data"]["roomstatus"]
+            if not roomstatus:
+                self._activePreset = PRESET_NONE
+            else:
+                self._activePreset = roomstatus
+        except (IndexError, KeyError, TypeError):
+            self._activePreset = PRESET_NONE
+            _LOGGER.debug("Could not determine preset for index %s", self.idx)
