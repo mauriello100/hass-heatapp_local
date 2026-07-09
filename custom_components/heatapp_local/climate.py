@@ -195,7 +195,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         try:
             return float(self.coordinator.data[self.idx]["data"]["minTemperature"])
         except (IndexError, KeyError, TypeError, ValueError):
-            return 5.0  # Safe thermostat baseline fallback
+            return 5.0
 
     @property
     def max_temp(self):
@@ -203,7 +203,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         try:
             return float(self.coordinator.data[self.idx]["data"]["maxTemperature"])
         except (IndexError, KeyError, TypeError, ValueError):
-            return 30.0  # Safe thermostat upper fallback
+            return 30.0
 
     @property
     def supported_features(self):
@@ -252,8 +252,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def hvac_mode(self):
         """Return current operation."""
-        self.determine_if_device_is_following_schema()
-        self.determine_mode_membership()
+        self._activeMode = self.determine_if_device_is_following_schema()
         return self._activeMode
 
     def is_between(self, time, time_range):
