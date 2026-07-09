@@ -102,7 +102,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         self.idx = heatappRoomData
         self._apiObject = apiObject
         self._sceneManager = scene
-        self._activeMode = ""
+        self._activeMode = HVACMode.OFF
         self._activePreset = PRESET_NONE
         _LOGGER.info("initializing thermostat: %s", self.idx)
         
@@ -170,7 +170,6 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         """Return the target temperature."""
         try:
             desired = self.coordinator.data[self.idx]["data"]["desiredTemperature"]
-            _LOGGER.debug("the current temperature in coordinator data is: %s", desired)
             return float(desired) if desired is not None else None
         except (IndexError, KeyError, TypeError, ValueError):
             return None
@@ -200,114 +199,3 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def max_temp(self):
         """Return the maximum temperature."""
-        try:
-            return float(self.coordinator.data[self.idx]["data"]["maxTemperature"])
-        except (IndexError, KeyError, TypeError, ValueError):
-            return 30.0
-
-    @property
-    def supported_features(self):
-        """Return the list of supported features."""
-        return SUPPORT_FLAGS
-
-    @property
-    def hvac_modes(self):
-        """Return the list of available hvac operation modes."""
-        return [HVACMode.HEAT, HVACMode.OFF, HVACMode.AUTO, HVACMode.COOL]  
-
-    @property
-    def preset_mode(self):
-        """Return the current preset mode."""
-        self.determine_preset_membership()
-        return self._activePreset
-        
-    async def async_set_preset_mode(self, preset_mode):
-        """Set new preset mode."""
-        try:
-            room_id = self.coordinator.data[self.idx]["data"]["id"]
-            room_name = self.coordinator.data[self.idx]["name"]
-        except (IndexError, KeyError, TypeError):
-            _LOGGER.error("Cannot set preset mode; room identity data is missing for index %s", self.idx)
-            return
-
-        _LOGGER.info("preset_mode to enable is: %s", preset_mode)
-        if self._activePreset != "":
-            if preset_mode != self._activePreset:
-                await self.hass.async_add_executor_job(
-                    self._sceneManager.removeMemberFromScene, room_id, self._activePreset, True
-                )
-                if preset_mode == PRESET_NONE:
-                    self._activePreset = preset_mode
-                if preset_mode != PRESET_NONE:
-                    await self.hass.async_add_executor_job(
-                        self._sceneManager.addMemberToScene, room_id, preset_mode, True
-                    )
-                    self._activePreset = preset_mode
-        _LOGGER.info("Scene adjustment finished for room: %s", room_name)
-
-    @property
-    def preset_modes(self):
-        return [PRESET_NONE, PRESET_BOOST, PRESET_HOLIDAY, PRESET_GO, PRESET_PARTY, PRESET_STANDBY]
-
-    @property
-    def hvac_mode(self):
-        """Return current operation."""
-        self._activeMode = self.determine_if_device_is_following_schema()
-        return self._activeMode
-
-    def is_between(self, time, time_range):
-        if time_range[1] < time_range[0]:
-            return time >= time_range[0] or time <= time_range[1]
-        return time_range[0] <= time <= time_range[1]
-    
-    def is_between_obj(self, time, range_start, range_end):
-        time_format = '%H:%M'
-        try:
-            range_start = datetime.datetime.strptime(range_start, time_format).time()
-            range_end = datetime.datetime.strptime(range_end, time_format).time()
-            return (range_start <= time <= range_end) or (
-                range_end <= range_start and (range_start <= time or time <= range_end)
-            )
-        except (ValueError, TypeError):
-            return False
-
-    def determine_if_device_is_following_schema(self):
-        currentTime = datetime.datetime.now().time()
-        schedulePeriodsToday = self.getTodaysSchedule()
-        
-        desiredTempDaySchedule = None
-        desiredTempDay2Schedule = None
-        desiredTempNightSchedule = None
-
-        if schedulePeriodsToday is not None: 
-            desiredTempDaySchedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem.get("type") == "H"), None)
-            desiredTempDay2Schedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem.get("type") == "L"), None)
-            desiredTempNightSchedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem.get("type") == "N"), None)
-        else:
-            _LOGGER.debug("Unable to retrieve the schedule periods for today for index %s", self.idx)
-
-        if desiredTempDaySchedule is not None and "from" in desiredTempDaySchedule and "to" in desiredTempDaySchedule:
-            if self.is_between_obj(currentTime, desiredTempDaySchedule["from"], desiredTempDaySchedule["to"]):
-                return "Day"
-
-        if desiredTempDay2Schedule is not None and "from" in desiredTempDay2Schedule and "to" in desiredTempDay2Schedule:
-            if self.is_between_obj(currentTime, desiredTempDay2Schedule["from"], desiredTempDay2Schedule["to"]):
-                return "Evening"
-
-        if desiredTempNightSchedule is not None and "from" in desiredTempNightSchedule and "to" in desiredTempNightSchedule:
-            if self.is_between_obj(currentTime, desiredTempNightSchedule["from"], desiredTempNightSchedule["to"]):
-                return "Night"
-
-        return "Manual"
-
-    def determine_preset_membership(self):
-        """Determine if the room is part of a specific scene/preset."""
-        try:
-            roomstatus = self.coordinator.data[self.idx]["data"]["roomstatus"]
-            if not roomstatus:
-                self._activePreset = PRESET_NONE
-            else:
-                self._activePreset = roomstatus
-        except (IndexError, KeyError, TypeError):
-            self._activePreset = PRESET_NONE
-            _LOGGER.debug("Could not determine preset for index %s", self.idx)
