@@ -1,90 +1,73 @@
-from homeassistant.config_entries import ConfigEntry
-from .const import CONF_USER, CONF_PASSWORD, CONF_HOST
-from heatapp.apiMethods import ApiMethods
-from heatapp.login import Login
-from heatapp.sceneManager import SceneManager
-from homeassistant import config_entries
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.core import HomeAssistant, callback
+import logging
+import datetime
 from homeassistant.components.climate import ClimateEntity
 from homeassistant.components.climate.const import (
     ClimateEntityFeature,
-    HVACAction,
     HVACMode,
-    PRESET_BOOST,
 )
-from homeassistant.const import (
-    ATTR_NAME,
-    ATTR_TEMPERATURE,
-    CONF_CLIENT_ID,
-    CONF_CLIENT_SECRET,
-    UnitOfTemperature,
-)
+from homeassistant.const import UnitOfTemperature
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-import datetime
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
-import asyncio
 from .const import DOMAIN
-import logging
+from heatapp.sceneManager import SceneManager
 
-SUPPORT_FLAGS = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
 _LOGGER = logging.getLogger(__name__)
 
+SUPPORT_FLAGS = ClimateEntityFeature.TARGET_TEMPERATURE | ClimateEntityFeature.PRESET_MODE
+
 PRESET_NONE = "None"
+PRESET_BOOST = "Boost"
 PRESET_HOLIDAY = "Holiday"
 PRESET_GO = "Leave"
 PRESET_PARTY = "Party"
 PRESET_STANDBY = "Standby"
 
+async def async_setup_entry(
+    hass: HomeAssistant, 
+    config_entry: ConfigEntry, 
+    async_add_entities: AddEntitiesCallback
+):
+    """Set up the climate platform from a config entry."""
+    # Retrieve the coordinator from hass.data, initialized in __init__.py
+    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    api = coordinator.api
+    scene_manager = SceneManager(api)
+
+    entities = []
+    # Loop through the data to create entities for each room
+    if coordinator.data:
+        for i in range(len(coordinator.data)):
+            entities.append(HeatAppClimateEntity(coordinator, i, api, scene_manager))
+    
+    async_add_entities(entities)
+
 class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     """Representation of a HeatApp Thermostat device."""
 
-    def __init__(self, coordinator, heatappRoomData, apiObject, scene):
+    def __init__(self, coordinator, idx, api_object, scene_manager):
         super().__init__(coordinator)
-        self.idx = heatappRoomData
-        self._apiObject = apiObject
-        self._sceneManager = scene
-        self._activeMode = ""
-        self._activePreset = PRESET_NONE
-        self._schedulePeriodsForRoom = {"success": False}
-        _LOGGER.info("initializing thermostat: %s", self.idx)
+        self.idx = idx
+        self._api_object = api_object
+        self._scene_manager = scene_manager
+        self._active_preset = PRESET_NONE
+        self._schedule_periods_for_room = {"success": False}
 
-    async def async_added_to_hass(self): 
-        await super().async_added_to_hass() 
-        try: 
-            await self.initOneTimeInformation()
-        except Exception as exc: 
-            try:
-                room_name = self.coordinator.data[self.idx]["name"]
-            except (IndexError, KeyError, TypeError):
-                room_name = f"Unknown Index {self.idx}"
-            _LOGGER.warning("Failed to fetch switching times for %s: %s", room_name, exc) 
-            self._schedulePeriodsForRoom = {"success": False}
-
-    async def initOneTimeInformation(self):
-        self._schedulePeriodsForRoom = await self.hass.async_add_executor_job(
-            self._apiObject.getSwitchingTimes, 
-            self.coordinator.data[self.idx]["data"]["name"], 
-            self.coordinator.data[self.idx]["data"]["id"]
-        )
-
-    def getTodaysSchedule(self):
-        if getattr(self, "_schedulePeriodsForRoom", None) and self._schedulePeriodsForRoom.get("success"):            
-            weekDayIndex = datetime.datetime.now().weekday()
-            listStartIndex = weekDayIndex * 3
-            return self._schedulePeriodsForRoom["switchingtimes"][listStartIndex:listStartIndex+3]
-        return None
-
-    @property
-    def unique_id(self):
+    async def async_added_to_hass(self):
+        await super().async_added_to_hass()
         try:
-            return self.coordinator.data[self.idx]["name"]
-        except (IndexError, KeyError, TypeError):
-            return f"heatapp_idx_{self.idx}"
+            await self.init_one_time_information()
+        except Exception as exc:
+            _LOGGER.warning("Failed to fetch switching times for index %s: %s", self.idx, exc)
+
+    async def init_one_time_information(self):
+        """Fetch switching times from the API."""
+        room_data = self.coordinator.data[self.idx]["data"]
+        self._schedule_periods_for_room = await self.hass.async_add_executor_job(
+            self._api_object.getSwitchingTimes, room_data["name"], room_data["id"]
+        )
 
     @property
     def name(self):
@@ -94,12 +77,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             return f"HeatApp Zone {self.idx}"
 
     @property
-    def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self.unique_id)},
-            "name": self.name,
-            "manufacturer": "HeatApp (danfoss)",
-        }
+    def unique_id(self):
+        return f"heatapp_{self.name}_{self.idx}"
 
     @property
     def temperature_unit(self):
@@ -108,73 +87,33 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def target_temperature(self):
         try:
-            desired = self.coordinator.data[self.idx]["data"]["desiredTemperature"]
-            return float(desired) if desired is not None else None
+            return float(self.coordinator.data[self.idx]["data"]["desiredTemperature"])
         except (IndexError, KeyError, TypeError, ValueError):
             return None
-
-    @property
-    def target_temperature_step(self):
-        return 0.5
 
     @property
     def current_temperature(self):
         try:
-            actual = self.coordinator.data[self.idx]["data"]["actualTemperature"]
-            return float(actual) if actual is not None else None
+            return float(self.coordinator.data[self.idx]["data"]["actualTemperature"])
         except (IndexError, KeyError, TypeError, ValueError):
             return None
 
     @property
-    def min_temp(self):
-        try:
-            return float(self.coordinator.data[self.idx]["data"]["minTemperature"])
-        except (IndexError, KeyError, TypeError, ValueError):
-            return 5.0
+    def hvac_mode(self):
+        return HVACMode.AUTO
 
     @property
-    def max_temp(self):
-        try:
-            return float(self.coordinator.data[self.idx]["data"]["maxTemperature"])
-        except (IndexError, KeyError, TypeError, ValueError):
-            return 30.0
+    def hvac_modes(self):
+        return [HVACMode.AUTO, HVACMode.OFF]
 
     @property
     def supported_features(self):
         return SUPPORT_FLAGS
 
     @property
-    def hvac_modes(self):
-        return [HVACMode.HEAT, HVACMode.OFF, HVACMode.AUTO, HVACMode.COOL]
-
-    @property
     def preset_mode(self):
-        return self._activePreset
-        
-    async def async_set_preset_mode(self, preset_mode):
-        try:
-            room_id = self.coordinator.data[self.idx]["data"]["id"]
-        except (IndexError, KeyError, TypeError):
-            _LOGGER.error("Cannot set preset mode; room identity data is missing for index %s", self.idx)
-            return
-
-        if self._activePreset != "":
-            if preset_mode != self._activePreset:
-                await self.hass.async_add_executor_job(
-                    self._sceneManager.removeMemberFromScene, room_id, self._activePreset, True
-                )
-                if preset_mode == PRESET_NONE:
-                    self._activePreset = preset_mode
-                if preset_mode != PRESET_NONE:
-                    await self.hass.async_add_executor_job(
-                        self._sceneManager.addMemberToScene, room_id, preset_mode, True
-                    )
-                    self._activePreset = preset_mode
+        return self._active_preset
 
     @property
     def preset_modes(self):
         return [PRESET_NONE, PRESET_BOOST, PRESET_HOLIDAY, PRESET_GO, PRESET_PARTY, PRESET_STANDBY]
-
-    @property
-    def hvac_mode(self):
-        return self._activeMode
