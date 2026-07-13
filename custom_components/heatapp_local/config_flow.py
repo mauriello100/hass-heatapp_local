@@ -37,16 +37,12 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 def _normalize_base_url(host: str) -> str:
-    """Ensure the host has a correct scheme and no trailing slashes or typos."""
+    """Ensure the host is just an IP or hostname without scheme."""
     host = host.strip()
-    
-    # Fix common typo where user types 'http//' or 'https//' without the colon
-    host = re.sub(r"^(https?)(?://|/|:)*", r"\1://", host)
-    
-    # If no schema was supplied at all, default to http://
-    if not host.startswith(("http://", "https://")):
-        host = f"http://{host}"
-        
+    # Remove protocol if user included it
+    host = re.sub(r"^https?://", "", host)
+    # Remove any trailing path or slash
+    host = host.split('/')[0]
     return host.rstrip("/")
 
 
