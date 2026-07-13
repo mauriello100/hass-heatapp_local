@@ -1,12 +1,16 @@
 """The heatapp_local integration."""
 from __future__ import annotations
 import re
+import logging  # 1. ADDED IMPORT
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, CONF_HOST, CONF_USER, CONF_PASSWORD, CONF_INTERVAL
+
+# 2. DEFINED LOGGER AT TOP LEVEL
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.CLIMATE]
 
@@ -26,7 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     raw_host = config_entry.data[CONF_HOST]
     sanitized_host = _sanitize_host(raw_host)
 
-    _LOGGER = hass.logger
+    # 3. USE THE DEFINED _LOGGER
     _LOGGER.debug("Connecting to HeatApp host: %s (sanitized from %s)", sanitized_host, raw_host)
 
     coordinator = Coordinator(
