@@ -10,27 +10,22 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 # hub.py
-
 class HeatappHub:
-    def __init__(self, hass: HomeAssistant, host: str, user: str, password: str) -> None:
-        """Initialize."""
-        self.hass = hass
+    def __init__(self, hass, host, user, password) -> None:
         self.host = host
         self.user = user
         self.password = password
-        self.api = None  # Placeholder until authenticated
+        self.api = None # Initialize as None
         self._lock = threading.Lock()
 
-    async def authenticate(self):
-        """Perform asynchronous authentication."""
-        base_url = "http://" + self.host
-        loginManager = Login(base_url)
-        
-        # Await the executor job to get the actual credentials
-        credentials = await self.hass.async_add_executor_job(
-            loginManager.authorize, self.user, self.password
-        )
-        
-        # Initialize the API with the actual credentials
-        self.api = ApiMethods(credentials, base_url)
-        _LOGGER.debug("Authentication completed.")
+    def get_all_data(self):
+        """Thread-safe method called by the coordinator."""
+        with self._lock:
+            if self.api is None:
+                # Perform the blocking auth here, inside the thread
+                loginManager = Login("http://" + self.host)
+                credentials = loginManager.authorize(self.user, self.password)
+                self.api = ApiMethods(credentials, "http://" + self.host)
+            
+            # Return the actual data
+            return self.api.get_data()
