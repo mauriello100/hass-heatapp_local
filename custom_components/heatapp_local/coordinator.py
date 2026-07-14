@@ -12,27 +12,22 @@ _LOGGER = logging.getLogger(__name__)
 
 # coordinator.py
 
+# coordinator.py
 class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
-    """Gather data for the energy device."""
-
     def __init__(self, hass, host, user, password, interval) -> None:
         super().__init__(
             hass, _LOGGER, name=DOMAIN, update_interval=timedelta(seconds=interval),
         )
+        self.hass = hass
+        # Initialize the Hub, but DO NOT call any network methods here
         self.api = HeatappHub(hass, host, user, password)
-        self.interval = interval
 
     async def _async_update_data(self) -> dict:
-        """Update data via coordinator."""
+        """Fetch data."""
         try:
-            # Lazy authentication: only authenticate if not already done
-            if self.api.api is None:
-                await self.api.authenticate()
-            
-            # Now you can safely use self.api.api to fetch data
-            # Example: return await self.hass.async_add_executor_job(self.api.api.getData)
-            return {} 
-            
+            # Wrap the API call in an executor job. This is the pattern 
+            # that worked in b7edc75.
+            return await self.hass.async_add_executor_job(self.api.get_all_data)
         except Exception as err:
             _LOGGER.error("Error communicating with API: %r", err)
             raise UpdateFailed(f"Error communicating with API: {err}")
