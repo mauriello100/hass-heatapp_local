@@ -10,47 +10,29 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+# coordinator.py
+
 class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
     """Gather data for the energy device."""
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        host: str,
-        user: str,
-        password: str,
-        interval: int,
-    ) -> None:
-        """Initialize Update Coordinator."""
+    def __init__(self, hass, host, user, password, interval) -> None:
         super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=timedelta(seconds=interval),
+            hass, _LOGGER, name=DOMAIN, update_interval=timedelta(seconds=interval),
         )
-        # Store configuration for lazy authentication
-        self.host = host
-        self.user = user
-        self.password = password
         self.api = HeatappHub(hass, host, user, password)
+        self.interval = interval
 
     async def _async_update_data(self) -> dict:
         """Update data via coordinator."""
         try:
-            # Check if the hub is authenticated. 
-            # If self.api.api is None, we need to authenticate first.
+            # Lazy authentication: only authenticate if not already done
             if self.api.api is None:
-                _LOGGER.debug("Authenticating with HeatApp hub...")
                 await self.api.authenticate()
             
-            # Now that self.api.api is initialized, perform your data fetch.
-            # Example:
-            # data = await self.hass.async_add_executor_job(self.api.api.get_data)
-            # return data
-            
-            _LOGGER.debug("Data update successful")
-            return {"status": "success"} # Replace with your actual fetched data
+            # Now you can safely use self.api.api to fetch data
+            # Example: return await self.hass.async_add_executor_job(self.api.api.getData)
+            return {} 
             
         except Exception as err:
-            _LOGGER.error("Error communicating with HeatApp: %s", err)
+            _LOGGER.error("Error communicating with API: %r", err)
             raise UpdateFailed(f"Error communicating with API: {err}")
