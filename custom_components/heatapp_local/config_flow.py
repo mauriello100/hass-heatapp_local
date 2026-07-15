@@ -1,20 +1,11 @@
 """Config flow for heatapp_local integration."""
 import logging
 from json import JSONDecodeError
-import re
 
 import requests
 import voluptuous as vol
 
 from homeassistant import config_entries, core, exceptions
-from homeassistant.helpers.selector import (
-    TextSelector,
-    TextSelectorConfig,
-    TextSelectorType,
-    NumberSelector,
-    NumberSelectorConfig,
-    NumberSelectorMode,
-)
 
 from .const import DOMAIN, CONF_USER, CONF_PASSWORD, CONF_HOST, CONF_INTERVAL
 
@@ -24,30 +15,20 @@ _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_HOST): TextSelector(),
-        vol.Required(CONF_USER): TextSelector(),
-        vol.Required(CONF_PASSWORD): TextSelector(
-            TextSelectorConfig(type=TextSelectorType.PASSWORD)
-        ),
-        vol.Required(CONF_INTERVAL, default=60): NumberSelector(
-            NumberSelectorConfig(min=10, max=3600, mode=NumberSelectorMode.BOX)
-        ),
+        CONF_HOST: str,
+        CONF_USER: str,
+        CONF_PASSWORD: str,
+        CONF_INTERVAL: int,
     }
 )
 
 
 def _normalize_base_url(host: str) -> str:
-    """Ensure the host has a correct scheme and no trailing slashes or typos."""
+    """Ensure the host has a scheme and no trailing slash."""
     host = host.strip()
-    
-    # Fix common typo where user types 'http//' or 'https//' without the colon
-    host = re.sub(r"^(https?)(?://|/|:)*", r"\1://", host)
-    
-    # If no schema was supplied at all, default to http://
-    if not host.startswith(("http://", "https://")):
-        host = f"http://{host}"
-        
-    return host.rstrip("/")
+    if host.startswith(("http://", "https://")):
+        return host.rstrip("/")
+    return f"http://{host}".rstrip("/")
 
 
 async def validate_input(hass: core.HomeAssistant, data):
@@ -65,6 +46,9 @@ async def validate_input(hass: core.HomeAssistant, data):
         # Network/HTTP errors or invalid/empty JSON -> cannot connect
         raise CannotConnect from err
 
+    # If the library provides a specific exception for invalid credentials,
+    # catch it above and raise InvalidAuth.
+
     # Return info to store in the config entry.
     return {
         "title": base_url,
@@ -80,6 +64,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for heatapp_local."""
 
     VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_UNKNOWN
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
