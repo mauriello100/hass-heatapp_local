@@ -50,14 +50,15 @@ api = None
 credentials = None
 sceneManager = None
 coordinator = None
-
 async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry, async_add_entities):
+    #TODO add http prepend to conf host saved value 
     raw_host = str(config_entry.data[CONF_HOST]).strip()
     if raw_host.startswith(("http://", "https://")):
         base_url = raw_host.rstrip("/")
     else:
         base_url = f"http://{raw_host.rstrip('/')}"
-        
+    # host_clean = str(config_entry.data[CONF_HOST]).split("://")[-1].strip("/") 
+    # base_url = f"http://{host_clean}" 
     loginManager = Login(base_url)
     try:
         credentials = await hass.async_add_executor_job(
@@ -69,58 +70,85 @@ async def async_setup_integration(hass, config_entry: config_entries.ConfigEntry
     
     api = ApiMethods(credentials, base_url)
     sceneManager = SceneManager(api)
-    
+    # heatapp_coordinator: heatAppDeviceUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    """Config entry example."""
+    # assuming API object stored here by __init__.py
+    #api = hass.data[DOMAIN][entry.entry_id]
     async def async_update_data():
-        """Fetch data from API endpoint."""
-        roomData = await hass.async_add_executor_job(api.getRoomsList)
+        """Fetch data from API endpoint.
+
+        This is the place to pre-process the data to lookup tables
+        so entities can quickly look up their data.
+        """
+        
+        roomData = await hass.async_add_executor_job(
+            api.getRoomsList
+            )
         return roomData
+            # Note: asyncio.TimeoutError and aiohttp.ClientError are already
+            # handled by the data update coordinator.
+#            async with async_timeout.timeout(10):
+#                return await api.fetch_data()
+#        except ApiError as err:
+#            raise UpdateFailed(f"Error communicating with API: {err}")
 
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
+        # Name of the data. For logging purposes.
         name="climate",
         update_method=async_update_data,
+        # Polling interval. Will only be polled if there are subscribers.
         update_interval=datetime.timedelta(seconds=2),
     )
-    
+    # Fetch initial data so we have data when entities subscribe
     await coordinator.async_refresh()    
     
     async_add_entities(
         HeatAppClimateEntity(coordinator, heatapproom, api, sceneManager) for heatapproom, ent in enumerate(coordinator.data)
     ) 
   
-async def async_setup_entry(hass: HomeAssistant, config_entry: config_entries.ConfigEntry, async_add_entities: AddEntitiesCallback):
+#    hass.async_block_till_done()
+    
+async def async_setup_entry(    hass: HomeAssistant,
+    config_entry: config_entries.ConfigEntry,
+    async_add_entities: AddEntitiesCallback,):
+#    asyncio.run_coroutine_threadsafe(
+#        async_setup_integration(hass,"http://" + config_entry.options[CONF_HOST], config_entry.options[CONF_USER], config_entry.options[CONF_PASSWORD]), hass.loop
+#    ).result()
     hass.async_create_task(async_setup_integration(hass, config_entry, async_add_entities))
 
+    #await hass.async_add_executor_job(prereq, hass,"http://" + config_entry.options[CONF_HOST], config_entry.options[CONF_USER], config_entry.options[CONF_PASSWORD])
 
+
+#class HeatAppClimateEntity(ClimateEntity):
 class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     """Representation of a HeatApp Thermostat device."""
 
+#    def __init__(self, data, apiObject, scene, hass):
+#        """Initialize the thermostat."""
     def __init__(self, coordinator, heatappRoomData, apiObject, scene):
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator)
         self.idx = heatappRoomData
+        #Ideally this should be done in a larger interval than the standard update interval or triggered by an service call
+        #self.hass.async_create_task(self.initOneTimeInformation()) 
+        #self.initOneTimeInformation()
+        #self._data = data
         self._apiObject = apiObject
         self._sceneManager = scene
         self._activeMode = ""
         self._activePreset = PRESET_NONE
         _LOGGER.info("initializing thermostat: %s", self.idx)
-        
-        try:
-            _LOGGER.info("data: %s", self.coordinator.data[self.idx])
-        except (IndexError, KeyError, TypeError):
-            _LOGGER.warning("Coordinator data unavailable during initialization for index %s", self.idx)
+        _LOGGER.info("data: %s", self.coordinator.data[self.idx])
+        #_LOGGER.info("initializing thermostat: %s", self._data["data"]["name"])
 
     async def async_added_to_hass(self): 
         await super().async_added_to_hass() 
         try: 
             await self.initOneTimeInformation()
         except Exception as exc: 
-            try:
-                room_name = self.coordinator.data[self.idx]["name"]
-            except (IndexError, KeyError, TypeError):
-                room_name = f"Unknown Index {self.idx}"
-            _LOGGER.warning("Failed to fetch switching times for %s: %s", room_name, exc) 
+            _LOGGER.warning( "Failed to fetch switching times for %s: %s", self.coordinator.data[self.idx]["name"], exc ) 
             self._schedulePeriodsForRoom = {"success": False}
             
     async def initOneTimeInformation(self):
@@ -129,34 +157,31 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         )
 
     def getTodaysSchedule(self):
+        # if self._schedulePeriodsForRoom["success"]:
         if getattr(self, "_schedulePeriodsForRoom", None) and self._schedulePeriodsForRoom.get("success"):            
             weekDayIndex = datetime.datetime.now().weekday()
+            #Every weekday has an entry in the switching times array. Therefore, an offset needs to be applied to return the correct results
             listStartIndex = weekDayIndex * 3
             return self._schedulePeriodsForRoom["switchingtimes"][listStartIndex:listStartIndex+3]
-        return None
 
     @property
     def unique_id(self):
         """Return a unique ID."""
-        try:
-            return self.coordinator.data[self.idx]["name"]
-        except (IndexError, KeyError, TypeError):
-            return f"heatapp_idx_{self.idx}"
+#        return self._data["name"]
+        return self.coordinator.data[self.idx]["name"]
 
     @property
     def name(self):
         """Return the name of the entity."""
-        try:
-            return self.coordinator.data[self.idx]["name"]
-        except (IndexError, KeyError, TypeError):
-            return f"HeatApp Zone {self.idx}"
+#        return self._data["name"]
+        return self.coordinator.data[self.idx]["name"]
 
     @property
     def device_info(self):
         """Return the device info."""
         return {
             "identifiers": {(DOMAIN, self.unique_id)},
-            "name": self.name,
+            "name": self.coordinator.data[self.idx]["name"],
             "manufacturer": "HeatApp (danfoss)",
         }
 
@@ -168,12 +193,9 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def target_temperature(self):
         """Return the target temperature."""
-        try:
-            desired = self.coordinator.data[self.idx]["data"]["desiredTemperature"]
-            _LOGGER.debug("the current temperature in coordinator data is: %s", desired)
-            return float(desired) if desired is not None else None
-        except (IndexError, KeyError, TypeError, ValueError):
-            return None
+#        return self._data["data"]["desiredTemperature"]
+        _LOGGER.info("the current temperatue in coordinator data is: %s", self.coordinator.data[self.idx]["data"]["desiredTemperature"])
+        return self.coordinator.data[self.idx]["data"]["desiredTemperature"]
 
     @property
     def target_temperature_step(self):
@@ -183,27 +205,21 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def current_temperature(self):
         """Return the current temperature."""
-        try:
-            actual = self.coordinator.data[self.idx]["data"]["actualTemperature"]
-            return float(actual) if actual is not None else None
-        except (IndexError, KeyError, TypeError, ValueError):
-            return None
+#        return self._data["data"]["actualTemperature"]
+        return self.coordinator.data[self.idx]["data"]["actualTemperature"]
 
     @property
     def min_temp(self):
         """Return the minimum temperature."""
-        try:
-            return float(self.coordinator.data[self.idx]["data"]["minTemperature"])
-        except (IndexError, KeyError, TypeError, ValueError):
-            return 5.0  # Safe thermostat baseline fallback
+#        return self._data["data"]["minTemperature"]
+        _LOGGER.info("data: %s", self.coordinator.data[self.idx])
+        return self.coordinator.data[self.idx]["data"]["minTemperature"]
 
     @property
     def max_temp(self):
         """Return the maximum temperature."""
-        try:
-            return float(self.coordinator.data[self.idx]["data"]["maxTemperature"])
-        except (IndexError, KeyError, TypeError, ValueError):
-            return 30.0  # Safe thermostat upper fallback
+#        return self._data["data"]["maxTemperature"]
+        return self.coordinator.data[self.idx]["data"]["maxTemperature"]
 
     @property
     def supported_features(self):
@@ -213,45 +229,48 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def hvac_modes(self):
         """Return the list of available hvac operation modes."""
-        return [HVACMode.HEAT, HVACMode.OFF, HVACMode.AUTO, HVACMode.COOL]  
+        return [HVACMode.HEAT,HVACMode.OFF,HVACMode.AUTO,HVACMode.COOL]  
 
     @property
     def preset_mode(self):
-        """Return the current preset mode."""
+        """Return the current preset mode, e.g., home, away, temp.
+        Requires SUPPORT_PRESET_MODE.
+        """
         self.determine_preset_membership()
         return self._activePreset
         
+
     async def async_set_preset_mode(self, preset_mode):
         """Set new preset mode."""
-        try:
-            room_id = self.coordinator.data[self.idx]["data"]["id"]
-            room_name = self.coordinator.data[self.idx]["name"]
-        except (IndexError, KeyError, TypeError):
-            _LOGGER.error("Cannot set preset mode; room identity data is missing for index %s", self.idx)
-            return
-
         _LOGGER.info("preset_mode to enable is: %s", preset_mode)
+        _LOGGER.info("room id for scene change is: %s", self.coordinator.data[self.idx]["data"]["id"])
         if self._activePreset != "":
             if preset_mode != self._activePreset:
                 await self.hass.async_add_executor_job(
-                    self._sceneManager.removeMemberFromScene, room_id, self._activePreset, True
+                    self._sceneManager.removeMemberFromScene, self.coordinator.data[self.idx]["data"]["id"], self._activePreset, True
                 )
+                _LOGGER.info("Scene removal : %s", self._activePreset)
                 if preset_mode == PRESET_NONE:
                     self._activePreset = preset_mode
                 if preset_mode != PRESET_NONE:
                     await self.hass.async_add_executor_job(
-                        self._sceneManager.addMemberToScene, room_id, preset_mode, True
+                        self._sceneManager.addMemberToScene, self.coordinator.data[self.idx]["data"]["id"], preset_mode, True
                     )
+                    _LOGGER.info("Member has been added to scene: %s", self.coordinator.data[self.idx]["name"])
                     self._activePreset = preset_mode
-        _LOGGER.info("Scene adjustment finished for room: %s", room_name)
+        _LOGGER.info("Scene removal has been finished: %s", self.coordinator.data[self.idx]["name"])
 
     @property
     def preset_modes(self):
-        return [PRESET_NONE, PRESET_BOOST, PRESET_HOLIDAY, PRESET_GO, PRESET_PARTY, PRESET_STANDBY]
+        return [PRESET_NONE,PRESET_BOOST,PRESET_HOLIDAY,PRESET_GO,PRESET_PARTY,PRESET_STANDBY]
 
     @property
     def hvac_mode(self):
         """Return current operation."""
+        # TODO implement
+        #if self._data.get("power", "").lower() == "on":
+        #    return HVAC_MODE_HEAT
+        #_LOGGER.info("Room id type is %s", type(self._data["data"]["id"]))
         self.determine_if_device_is_following_schema()
         self.determine_mode_membership()
         return self._activeMode
@@ -263,44 +282,173 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     
     def is_between_obj(self, time, range_start, range_end):
         time_format = '%H:%M'
-        try:
-            range_start = datetime.datetime.strptime(range_start, time_format).time()
-            range_end = datetime.datetime.strptime(range_end, time_format).time()
-            return (range_start <= time <= range_end) or (
-                range_end <= range_start and (range_start <= time or time <= range_end)
-            )
-        except (ValueError, TypeError):
-            return False
+        range_start = datetime.datetime.strptime(range_start, time_format).time()
+        range_end = datetime.datetime.strptime(range_end, time_format).time()
+        return (range_start <= time <= range_end) or (
+            range_end <= range_start and (range_start <= time or time <= range_end)
+        )
 
     def determine_if_device_is_following_schema(self):
+        currentWeekdayIndex = datetime.datetime.now().weekday()
         currentTime = datetime.datetime.now().time()
+        
         schedulePeriodsToday = self.getTodaysSchedule()
+        #schedulePeriodsToday = await self.hass.async_add_executor_job(
+        #    self._apiObject.getSwitchingTimesForWeekday, self.coordinator.data[self.idx]["data"]["name"], self.coordinator.data[self.idx]["data"]["id"], currentWeekdayIndex
+        #)
+        #schedulePeriodsToday = self._apiObject.getSwitchingTimesForWeekday(self.coordinator.data[self.idx]["data"]["name"], self.coordinator.data[self.idx]["data"]["id"], currentWeekdayIndex)
+        _LOGGER.info("from time: %s", schedulePeriodsToday)
         
         desiredTempDaySchedule = None
         desiredTempDay2Schedule = None
         desiredTempNightSchedule = None
 
         if schedulePeriodsToday is not None: 
-            desiredTempDaySchedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem.get("type") == "H"), None)
-            desiredTempDay2Schedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem.get("type") == "L"), None)
-            desiredTempNightSchedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem.get("type") == "N"), None)
+            desiredTempDaySchedule =  next((elem for elem in schedulePeriodsToday if elem is not None and elem["type"] == "H"), None) #(elem["type"] == "H" for elem in schedulePeriodsToday)
+            desiredTempDay2Schedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem["type"] == "L"), None) #any(elem["type"] == "L" for elem in schedulePeriodsToday) #L might not be correct
+            desiredTempNightSchedule = next((elem for elem in schedulePeriodsToday if elem is not None and elem["type"] == "N"), None) #any(elem["type"] == "N" for elem in schedulePeriodsToday) #N might not be correct
         else:
-            _LOGGER.debug("Unable to retrieve the schedule periods for today for index %s", self.idx)
+            _LOGGER.warning("Unable to retrieve the schedule periods for today")
 
-        if desiredTempDaySchedule is not None and "from" in desiredTempDaySchedule and "to" in desiredTempDaySchedule:
+        if desiredTempDaySchedule is not None:
+            #check current roomstatus matches the status code expected for this schedule and then skip
+            #if self.is_between(currentTime, (desiredTempDaySchedule["from"], desiredTempDaySchedule["to"])) == True:
+            _LOGGER.info("from time: %s", desiredTempDaySchedule["from"])
+            _LOGGER.info("end time: %s", desiredTempDaySchedule["to"])
             if self.is_between_obj(currentTime, desiredTempDaySchedule["from"], desiredTempDaySchedule["to"]):
                 return "Day"
 
-        if desiredTempDay2Schedule is not None and "from" in desiredTempDay2Schedule and "to" in desiredTempDay2Schedule:
+        elif desiredTempDay2Schedule is not None:
             if self.is_between_obj(currentTime, desiredTempDay2Schedule["from"], desiredTempDay2Schedule["to"]):
                 return "Evening"
 
-        if desiredTempNightSchedule is not None and "from" in desiredTempNightSchedule and "to" in desiredTempNightSchedule:
+        elif desiredTempNightSchedule is not None: 
             if self.is_between_obj(currentTime, desiredTempNightSchedule["from"], desiredTempNightSchedule["to"]):
                 return "Night"
 
         return "Manual"
 
+
     def determine_preset_membership(self):
-        try:
-            roomstatus = self.coordinator.data[self.idx]["data"]["roomstatus"]
+#        roomstatus = self._data["data"]["roomstatus"]
+        roomstatus = self.coordinator.data[self.idx]["data"]["roomstatus"]
+#        _LOGGER.info("Room name: %s has status", self._data["data"]["originalName"])
+#        _LOGGER.info("code: %s ", self._data["data"]["roomstatus"] )
+        if roomstatus == 43:
+            
+            self._activePreset = PRESET_PARTY
+            _LOGGER.info("room has party mode active as scene for room: %s", self.coordinator.data[self.idx]["data"]["id"])
+        elif roomstatus == 99:    
+            _LOGGER.info("room has an problem active: %s", self.coordinator.data[self.idx]["data"]["originalName"])
+        elif roomstatus == 127:
+            self._activePreset = PRESET_HOLIDAY
+        elif roomstatus == 132:
+            self._activePreset = PRESET_STANDBY
+        elif roomstatus == 130:
+            self._activePreset = PRESET_GO
+        elif roomstatus == 46:
+            self._activePreset = PRESET_BOOST
+        elif roomstatus == 122 or roomstatus == 51 or roomstatus == 41 or roomstatus == 131 or roomstatus == 54 or roomstatus == 137:
+            #status code 54 hasn't positively been mapped to an scene however it appears to be linked being on or around the correct set temp
+            #122 work according to schema, 51 user manually set an desired temp heating while 41 is used to define that the set temp would entail cooling
+            #131 is used to indicate that the minimal normal (non scene) temp was manually set
+            #137 seems to indicate that the outside and room temp is above the set value for that room
+            self._activePreset = PRESET_NONE
+            _LOGGER.info("Room has manual / schema mode active as scene for room %s", self.coordinator.data[self.idx]["data"]["id"])
+        else:
+            _LOGGER.warning("The room %s has entered an unknown preset please inform the developer (give the dev the following code %s). This will default to the none preset until fixed", self.coordinator.data[self.idx]["data"]["name"], roomstatus)
+            self._activePreset = PRESET_NONE
+#        _LOGGER.info("active scene %s", self._activeMode)
+#        boostMember = self._sceneManager.isMemberOfScene(roomId, PRESET_BOOST)
+#        if boostMember == True:
+#            return 
+
+
+# HVACMode.HEAT,HVACMode.OFF,HVACMode.AUTO,HVACMode.COOL
+    def determine_mode_membership(self):
+        _LOGGER.info("active scene %s", self._activeMode)
+        if self._activePreset == PRESET_NONE:
+            if self.coordinator.data[self.idx]["data"]["actualTemperature"] < self.coordinator.data[self.idx]["data"]["desiredTemperature"]:
+                self._activeMode = HVACMode.HEAT
+            elif self.coordinator.data[self.idx]["data"]["actualTemperature"] > self.coordinator.data[self.idx]["data"]["desiredTemperature"]:
+                self._activeMode = HVACMode.COOL
+            elif self.coordinator.data[self.idx]["data"]["actualTemperature"] == self.coordinator.data[self.idx]["data"]["desiredTemperature"]:
+                self._activeMode = HVACMode.OFF
+            
+        elif self._activePreset == PRESET_PARTY:
+            self._activeMode = HVACMode.HEAT 
+
+        elif self._activePreset == PRESET_HOLIDAY:
+            self._activeMode = HVACMode.OFF
+            
+        elif self._activePreset == PRESET_GO:
+            self._activeMode = HVACMode.OFF
+            
+        elif self._activePreset == PRESET_STANDBY:
+            self._activeMode = HVACMode.OFF
+            
+        elif self._activePreset == PRESET_BOOST:
+            self._activeMode = HVACMode.HEAT
+        
+        
+    async def async_set_temperature(self, **kwargs):
+        """Set new target temperature."""
+        temperature = kwargs.get(ATTR_TEMPERATURE)
+        if temperature is None:
+            return
+        await self.hass.async_add_executor_job(
+            self._apiObject.setTemp, temperature, self.coordinator.data[self.idx]["data"]["id"]
+        )
+        #self.coordinator.data[self.idx]["data"]["desiredTemperature"] = temperature
+#    async def async_set_preset_mode(self, **kwargs):
+        """Set new preset mode."""
+        #return BOOST
+        
+    async def turn_on(self, **kwargs): 
+        if self._activePreset == PRESET_BOOST or self._activePreset == PRESET_NONE: #should be based on temp whether something should be done
+            return
+        
+        await self.hass.async_add_executor_job(
+            self._sceneManager.removeMemberFromScene, self.coordinator.data[self.idx]["data"]["id"], self._activePreset, True
+        )
+        self.determine_mode_membership()
+
+    async def turn_off(self, **kwargs):
+        if self._activePreset == PRESET_GO or self._activePreset == PRESET_HOLIDAY or self._activePreset == PRESET_STANDBY: #should be based on temp whether something should be done
+            return
+        await self.hass.async_add_executor_job(
+            self._sceneManager.addMemberToScene, self.coordinator.data[self.idx]["data"]["id"], "Standby", True
+        )
+        self.determine_mode_membership()
+
+    async def async_set_hvac_mode(self, hvac_mode):
+        """Set new target hvac mode."""
+        if hvac_mode == HVACMode.HEAT:
+            await self.turn_on()
+            return
+        if hvac_mode == HVACMode.OFF:
+            await self.turn_off()
+            
+#    async def async_update(self):
+#        """Retrieve latest state."""
+#        result = await self.hass.async_add_executor_job(
+#            self._apiObject.getSpecificRoom, self._data["data"]["id"]
+#        )
+#        #_LOGGER.info("update data obj: %s", result)
+#        self._data = result
+#        
+#        self.hass.async_add_executor_job(self.determine_mode_membership, self._data["data"]["id"])
+#        self.hass.async_add_executor_job(self.determine_preset_membership, self._data["data"]["id"])
+#        _LOGGER.info("the active scene is: %s", self._activeMode)
+
+#        return
+        #try:
+        #    token_info = await self._heater.control.refresh_access_token()
+        #except ambiclimate.AmbiclimateOauthError:
+        #    _LOGGER.error("Failed to refresh access token")
+        #    return
+
+        #if token_info:
+        #    await self._store.async_save(token_info)
+
+        #self._data = await self._heater.update_device()
