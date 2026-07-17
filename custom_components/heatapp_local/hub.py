@@ -24,7 +24,7 @@ class HeatappHub:
         self.api = None
         self.scene_manager = None
 
-    def fetch_data_sync(self) -> dict:
+    def fetch_data_sync(self) -> list:
         """Synchronously initialize the API and fetch data (must run in executor)."""
         with self._lock:
             # Only authenticate and instantiate objects once per session
@@ -35,9 +35,20 @@ class HeatappHub:
                 self.scene_manager = SceneManager(self.api)
             
             # --- API DATA FETCHING ---
-            # TODO: Call your scene_manager methods here to grab the actual climate data.
-            # Example: data = self.scene_manager.get_system_state()
+            # Fetch the rooms/zones from the Heatapp system.
+            # CHANGE `getRooms()` TO THE ACTUAL METHOD EXPOSED BY YOUR API WRAPPER
+            try:
+                raw_rooms = self.api.getRooms() 
+            except AttributeError:
+                _LOGGER.error("Method to fetch rooms not found. Please update hub.py with the correct heatapp method.")
+                return []
             
-            # We return a dummy dict for now so coordinator.data is truthy during testing.
-            # Replace this dict with your actual return data object.
-            return {"status": "connected"}
+            # Restructure the raw data into the format expected by climate.py
+            formatted_data = []
+            for room in raw_rooms:
+                formatted_data.append({
+                    "name": room.get("name", "Unknown Room"),
+                    "data": room
+                })
+                
+            return formatted_data
