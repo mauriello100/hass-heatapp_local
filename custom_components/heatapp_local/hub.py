@@ -27,30 +27,50 @@ class HeatappHub:
     def fetch_data_sync(self) -> list:
         """Synchronously initialize the API and fetch data."""
         with self._lock:
+            # Initialize API only if not already done
             if self.api is None or self.scene_manager is None:
-                credentials = self.login_manager.authorize(self.user, self.password)
-                self.api = ApiMethods(credentials, self.host)
-                self.scene_manager = SceneManager(self.api)
-                
-                # --- DEBUGGING: Forced Error to reveal method names in logs ---
-                _LOGGER.error("DEBUG: Available API methods: %s", dir(self.api))
-            
+                try:
+                    credentials = self.login_manager.authorize(self.user, self.password)
+                    self.api = ApiMethods(credentials, self.host)
+                    self.scene_manager = SceneManager(self.api)
+                except Exception as e:
+                    _LOGGER.error("Failed to authenticate or initialize API: %s", e)
+                    return []
+
             # --- API DATA FETCHING ---
             try:
-                # We are testing the API object here.
-                # If this fails, the error above will show you the correct method name.
-                raw_rooms = self.api.getRoomsList() 
-            except AttributeError:
-                _LOGGER.error("Method `getRooms` not found. Please check the logs for the `DEBUG: Available API methods` error line.")
-                return []
-            
-            # Restructure the raw data into the format expected by climate.py
-            formatted_data = []
-            if raw_rooms:
-                for room in raw_rooms:
-                    formatted_data.append({
-                        "name": room.get("name", "Unknown Room"),
-                        "data": room
-                    })
+                raw_rooms = self.api.getRoomsList()
                 
-            return formatted_data
+                if not raw_rooms:
+                    _LOGGER.debug("API returned no data.")
+                    return []
+
+                # Restructure the raw data into the format expected by climate.py
+                formatted_data = []
+
+                # Scenario 1: API returns a direct list (e.g., [{}, {}])
+                if isinstance(raw_rooms, list):
+                    for room in raw_rooms:
+                        formatted_data.append({
+                            "name": room.get("name", "Unknown Room"),
+                            "data": room
+                        })
+                
+                # Scenario 2: API returns a dictionary (e.g., {'rooms': [{}, {}]})
+                elif isinstance(raw_rooms, dict):
+                    # Check common keys where rooms might be stored
+                    rooms_list = raw_rooms.get("rooms") or raw_rooms.get("roomList") or []
+                    for room in rooms_list:
+                        formatted_data.append({
+                            "name": room.get("name", "Unknown Room"),
+                            "data": room
+                        })
+                
+                return formatted_data
+
+            except AttributeError:
+                _LOGGER.error("Method `getRoomsList` encountered an error or does not exist.")
+                return []
+            except Exception as e:
+                _LOGGER.error("Unexpected error fetching data: %s", e)
+                return []
