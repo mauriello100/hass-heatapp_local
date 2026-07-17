@@ -36,7 +36,6 @@ async def async_setup_entry(
     """Set up heatapp climate entities from a config entry."""
     coordinator = hass.data[DOMAIN][config_entry.entry_id]
 
-    # Coordinator data is pre-populated by async_config_entry_first_refresh in __init__.py
     async_add_entities(
         HeatAppClimateEntity(coordinator, idx) 
         for idx, _ in enumerate(coordinator.data)
@@ -68,8 +67,9 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             
     async def initOneTimeInformation(self) -> None:
         """Fetch historical scheduling details."""
+        # Updated to access api_hub
         self._schedulePeriodsForRoom = await self.hass.async_add_executor_job(
-            self.coordinator.api.api.getSwitchingTimes, 
+            self.coordinator.api_hub.api.getSwitchingTimes, 
             self.coordinator.data[self.idx]["data"]["name"], 
             self.coordinator.data[self.idx]["data"]["id"]
         )
@@ -161,7 +161,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set new preset mode via the scene manager context."""
         room_id = self.coordinator.data[self.idx]["data"]["id"]
-        scene_mgr = self.coordinator.api.scene_manager
+        # Updated to access api_hub
+        scene_mgr = self.coordinator.api_hub.scene_manager
 
         if self._activePreset != "" and preset_mode != self._activePreset:
             if self._activePreset != PRESET_NONE:
@@ -230,8 +231,9 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
+        # Updated to access api_hub
         await self.hass.async_add_executor_job(
-            self.coordinator.api.api.setTemp, temperature, self.coordinator.data[self.idx]["data"]["id"]
+            self.coordinator.api_hub.api.setTemp, temperature, self.coordinator.data[self.idx]["data"]["id"]
         )
         await self.coordinator.async_request_refresh()
 
@@ -240,8 +242,9 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         if self._activePreset in [PRESET_BOOST, PRESET_NONE]:
             return
         
+        # Updated to access api_hub
         await self.hass.async_add_executor_job(
-            self.coordinator.api.scene_manager.removeMemberFromScene, 
+            self.coordinator.api_hub.scene_manager.removeMemberFromScene, 
             self.coordinator.data[self.idx]["data"]["id"], self._activePreset, True
         )
         await self.coordinator.async_request_refresh()
@@ -250,8 +253,9 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         """Force device into tracking standby configuration."""
         if self._activePreset in [PRESET_GO, PRESET_HOLIDAY, PRESET_STANDBY]:
             return
+        # Updated to access api_hub
         await self.hass.async_add_executor_job(
-            self.coordinator.api.scene_manager.addMemberToScene, 
+            self.coordinator.api_hub.scene_manager.addMemberToScene, 
             self.coordinator.data[self.idx]["data"]["id"], "Standby", True
         )
         await self.coordinator.async_request_refresh()
