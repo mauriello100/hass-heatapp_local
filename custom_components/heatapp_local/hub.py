@@ -39,7 +39,7 @@ class HeatappHub:
             try:
                 # We are testing the API object here.
                 # If this fails, the error above will show you the correct method name.
-                raw_rooms = self.api.getRooms() 
+                raw_rooms = self.api.getRoomsList() 
             except AttributeError:
                 _LOGGER.error("Method `getRooms` not found. Please check the logs for the `DEBUG: Available API methods` error line.")
                 return []
