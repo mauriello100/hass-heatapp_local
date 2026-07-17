@@ -32,24 +32,25 @@ class HeatappHub:
                 self.api = ApiMethods(credentials, self.host)
                 self.scene_manager = SceneManager(self.api)
                 
-                # --- DEBUGGING: Log all available methods ---
-                _LOGGER.info("DEBUG: Available API methods: %s", dir(self.api))
+                # --- DEBUGGING: Forced Error to reveal method names in logs ---
+                _LOGGER.error("DEBUG: Available API methods: %s", dir(self.api))
             
             # --- API DATA FETCHING ---
             try:
                 # We are testing the API object here.
-                # If this fails again, check the logs for the 'DEBUG' line.
+                # If this fails, the error above will show you the correct method name.
                 raw_rooms = self.api.getRooms() 
             except AttributeError:
-                _LOGGER.error("Method `getRooms` not found. Please check the logs for the `DEBUG: Available API methods` list to find the correct one.")
+                _LOGGER.error("Method `getRooms` not found. Please check the logs for the `DEBUG: Available API methods` error line.")
                 return []
             
             # Restructure the raw data into the format expected by climate.py
             formatted_data = []
-            for room in raw_rooms:
-                formatted_data.append({
-                    "name": room.get("name", "Unknown Room"),
-                    "data": room
-                })
+            if raw_rooms:
+                for room in raw_rooms:
+                    formatted_data.append({
+                        "name": room.get("name", "Unknown Room"),
+                        "data": room
+                    })
                 
             return formatted_data
