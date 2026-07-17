@@ -1,8 +1,9 @@
-"""DataUpdateCoordinator for the heatapp_local integration."""
+"""Update Coordinator for Heatapp Local."""
 from __future__ import annotations
 
-from datetime import timedelta
+import asyncio
 import logging
+from datetime import timedelta
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -12,12 +13,9 @@ from .hub import HeatappHub
 
 _LOGGER = logging.getLogger(__name__)
 
-
 class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
-    """Gather data centrally for all HeatApp climate entities."""
+    """Gather data for the climate device."""
 
-    api: HeatappHub
-   
     def __init__(
         self,
         hass: HomeAssistant,
@@ -28,28 +26,26 @@ class heatAppDeviceUpdateCoordinator(DataUpdateCoordinator):
     ) -> None:
         """Initialize Update Coordinator."""
         super().__init__(
-            hass, 
-            _LOGGER, 
-            name=DOMAIN, 
+            hass,
+            _LOGGER,
+            name=DOMAIN,
             update_interval=timedelta(seconds=interval),
         )
-        self.api = HeatappHub(hass, host, user, password)
-        self.interval = interval
+        self.api_hub = HeatappHub(hass, host, user, password)
 
-    async def _async_update_data(self) -> list:
-        """Fetch data from HeatApp endpoint."""
+    async def _async_update_data(self) -> dict:
+        """Fetch data from API endpoint asynchronously."""
         try:
-            # 1. Ensure the hub wrapper has established authenticated sessions
-            if self.api.api is None:
-                await self.hass.async_add_executor_job(self.api.authenticate)
-            
-            # 2. Fetch data via the synchronous backend library
-            room_data = await self.hass.async_add_executor_job(self.api.api.getRoomsList)
-            
-            if not room_data:
-                raise UpdateFailed("HeatApp instance returned empty or invalid room data")
+            # Wrap in a timeout and run the synchronous hub methods in an executor thread
+            async with asyncio.timeout(10):
+                data = await self.hass.async_add_executor_job(self.api_hub.fetch_data_sync)
                 
-            return room_data
+            if not data:
+                raise UpdateFailed("No data received from Heatapp API")
+                
+            return data
 
+        except TimeoutError as err:
+            raise UpdateFailed(f"Timeout communicating with Heatapp API: {err}") from err
         except Exception as err:
-            raise UpdateFailed(f"Error communicating with HeatApp API: {err}") from err
+            raise UpdateFailed(f"Error communicating with Heatapp API: {err}") from err
