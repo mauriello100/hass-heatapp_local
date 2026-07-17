@@ -36,14 +36,12 @@ class HeatappHub:
                 _LOGGER.info("DEBUG: Available API methods: %s", dir(self.api))
             
             # --- API DATA FETCHING ---
-            # Once you see the output in your logs, replace `getRooms()` 
-            # with the correct method found in the list.
             try:
                 # We are testing the API object here.
                 # If this fails again, check the logs for the 'DEBUG' line.
                 raw_rooms = self.api.getRooms() 
             except AttributeError:
-                _LOGGER.error("Method `getRooms` not found. Check the logs for the `DEBUG` list.")
+                _LOGGER.error("Method `getRooms` not found. Please check the logs for the `DEBUG: Available API methods` list to find the correct one.")
                 return []
             
             # Restructure the raw data into the format expected by climate.py
