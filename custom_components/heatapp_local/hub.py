@@ -13,9 +13,9 @@ class HeatappHub:
     """Wrapper class to handle Heatapp API communication."""
 
     def __init__(self, hass: HomeAssistant, host: str, user: str, password: str) -> None:
-        """Initialize the Hub. No blocking network calls occur here."""
+        """Initialize the Hub."""
         self.hass = hass
-        self.host = host  # Already normalized via config_flow.py
+        self.host = host
         self.user = user
         self.password = password
         self._lock = threading.Lock()
@@ -25,22 +25,25 @@ class HeatappHub:
         self.scene_manager = None
 
     def fetch_data_sync(self) -> list:
-        """Synchronously initialize the API and fetch data (must run in executor)."""
+        """Synchronously initialize the API and fetch data."""
         with self._lock:
-            # Only authenticate and instantiate objects once per session
             if self.api is None or self.scene_manager is None:
-                # This blocking call is safe because the coordinator runs it in an executor job
                 credentials = self.login_manager.authorize(self.user, self.password)
                 self.api = ApiMethods(credentials, self.host)
                 self.scene_manager = SceneManager(self.api)
+                
+                # --- DEBUGGING: Log all available methods ---
+                _LOGGER.info("DEBUG: Available API methods: %s", dir(self.api))
             
             # --- API DATA FETCHING ---
-            # Fetch the rooms/zones from the Heatapp system.
-            # CHANGE `getRooms()` TO THE ACTUAL METHOD EXPOSED BY YOUR API WRAPPER
+            # Once you see the output in your logs, replace `getRooms()` 
+            # with the correct method found in the list.
             try:
+                # We are testing the API object here.
+                # If this fails again, check the logs for the 'DEBUG' line.
                 raw_rooms = self.api.getRooms() 
             except AttributeError:
-                _LOGGER.error("Method to fetch rooms not found. Please update hub.py with the correct heatapp method.")
+                _LOGGER.error("Method `getRooms` not found. Check the logs for the `DEBUG` list.")
                 return []
             
             # Restructure the raw data into the format expected by climate.py
