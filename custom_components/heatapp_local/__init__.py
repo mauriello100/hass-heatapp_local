@@ -11,7 +11,6 @@ PLATFORMS: list[Platform] = [Platform.CLIMATE]
 
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Set up heatapp from a config entry."""
     from .coordinator import heatAppDeviceUpdateCoordinator as Coordinator
 
     hass.data.setdefault(DOMAIN, {})
@@ -26,10 +25,18 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
 
     hass.data[DOMAIN][config_entry.entry_id] = coordinator
 
-    await coordinator.async_config_entry_first_refresh()
+    # Perform initial refresh and handle failures so HA retries later
+    try:
+        await coordinator.async_config_entry_first_refresh()
+    except Exception as err:
+        raise ConfigEntryNotReady(f"Initial data fetch failed: {err}") from err
+
+    if not coordinator.data:
+        # Defensive: if no data after first refresh, retry later
+        raise ConfigEntryNotReady("HeatApp returned no data during initial setup")
+
     config_entry.async_on_unload(config_entry.add_update_listener(update_listener))
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
-
     return True
 
 
