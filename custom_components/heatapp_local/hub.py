@@ -84,5 +84,5 @@ class HeatappHub:
                 _LOGGER.error("Method `getRoomsList` encountered an error or does not exist.")[cite: 15]
                 return []
             except Exception as e:
-                _LOGGER.error("Unexpected error fetching data: %s", e)[cite: 15]
+                _LOGGER.error("Unexpected error fetching data: %s", e)
                 return []
