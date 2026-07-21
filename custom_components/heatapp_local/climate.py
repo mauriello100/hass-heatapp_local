@@ -49,7 +49,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         """Pass coordinator to CoordinatorEntity."""
         super().__init__(coordinator)
         self.idx = heatapp_room_idx
-        self._activeMode = ""
+        self._activeMode = HVACMode.HEAT
         self._activePreset = PRESET_NONE
         self._schedulePeriodsForRoom = {"success": False}
         _LOGGER.info("Initializing heatapp thermostat entity index: %s", self.idx)
@@ -66,10 +66,9 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             ) 
             
     async def initOneTimeInformation(self) -> None:
-        """Fetch historical scheduling details."""
-        # Updated to access api_hub
+        """Fetch historical scheduling details via hub wrapper."""
         self._schedulePeriodsForRoom = await self.hass.async_add_executor_job(
-            self.coordinator.api_hub.api.getSwitchingTimes, 
+            self.coordinator.api_hub.get_switching_times, 
             self.coordinator.data[self.idx]["data"]["name"], 
             self.coordinator.data[self.idx]["data"]["id"]
         )
@@ -84,8 +83,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
 
     @property
     def unique_id(self) -> str:
-        """Return a unique ID."""
-        return self.coordinator.data[self.idx]["name"]
+        """Return a stable unique ID based on the room ID."""
+        return str(self.coordinator.data[self.idx]["data"]["id"])
 
     @property
     def name(self) -> str:
@@ -97,7 +96,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         """Return the device info."""
         return {
             "identifiers": {(DOMAIN, self.unique_id)},
-            "name": self.coordinator.data[self.idx]["name"],
+            "name": self.name,
             "manufacturer": "HeatApp (Danfoss)",
         }
 
@@ -139,7 +138,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
     @property
     def hvac_modes(self) -> list[HVACMode]:
         """Return the list of available hvac operation modes."""
-        return [HVACMode.HEAT, HVACMode.OFF, HVACMode.AUTO, HVACMode.COOL]  
+        return [HVACMode.HEAT, HVACMode.OFF]  
 
     @property
     def preset_mode(self) -> str:
@@ -159,20 +158,19 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         return self._activeMode
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set new preset mode via the scene manager context."""
+        """Set new preset mode via the hub context."""
         room_id = self.coordinator.data[self.idx]["data"]["id"]
-        # Updated to access api_hub
-        scene_mgr = self.coordinator.api_hub.scene_manager
+        api_hub = self.coordinator.api_hub
 
         if self._activePreset != "" and preset_mode != self._activePreset:
             if self._activePreset != PRESET_NONE:
                 await self.hass.async_add_executor_job(
-                    scene_mgr.removeMemberFromScene, room_id, self._activePreset, True
+                    api_hub.remove_member_from_scene, room_id, self._activePreset, True
                 )
             
             if preset_mode != PRESET_NONE:
                 await self.hass.async_add_executor_job(
-                    scene_mgr.addMemberToScene, room_id, preset_mode, True
+                    api_hub.add_member_to_scene, room_id, preset_mode, True
                 )
             
             self._activePreset = preset_mode
@@ -194,7 +192,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         if roomstatus == 43:
             self._activePreset = PRESET_PARTY
         elif roomstatus == 99:    
-            _LOGGER.warning("Room %s reports active problem status flag", self.coordinator.data[self.idx]["name"])
+            _LOGGER.warning("Room %s reports active problem status flag", self.name)
         elif roomstatus == 127:
             self._activePreset = PRESET_HOLIDAY
         elif roomstatus == 132:
@@ -206,7 +204,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         elif roomstatus in [41, 51, 54, 122, 131, 137]:
             self._activePreset = PRESET_NONE
         else:
-            _LOGGER.warning("Unknown status code %s encountered on room %s", roomstatus, self.coordinator.data[self.idx]["data"]["name"])
+            _LOGGER.warning("Unknown status code %s encountered on room %s", roomstatus, self.name)
             self._activePreset = PRESET_NONE
 
     def determine_mode_membership(self) -> None:
@@ -218,7 +216,7 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             if actual_temp < target_temp:
                 self._activeMode = HVACMode.HEAT
             elif actual_temp > target_temp:
-                self._activeMode = HVACMode.COOL
+                self._activeMode = HVACMode.HEAT
             else:
                 self._activeMode = HVACMode.OFF
         elif self._activePreset in [PRESET_PARTY, PRESET_BOOST]:
@@ -227,13 +225,12 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
             self._activeMode = HVACMode.OFF
         
     async def async_set_temperature(self, **kwargs) -> None:
-        """Set new target temperature."""
+        """Set new target temperature via hub wrapper."""
         temperature = kwargs.get(ATTR_TEMPERATURE)
         if temperature is None:
             return
-        # Updated to access api_hub
         await self.hass.async_add_executor_job(
-            self.coordinator.api_hub.api.setTemp, temperature, self.coordinator.data[self.idx]["data"]["id"]
+            self.coordinator.api_hub.set_temperature, temperature, self.coordinator.data[self.idx]["data"]["id"]
         )
         await self.coordinator.async_request_refresh()
 
@@ -242,9 +239,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         if self._activePreset in [PRESET_BOOST, PRESET_NONE]:
             return
         
-        # Updated to access api_hub
         await self.hass.async_add_executor_job(
-            self.coordinator.api_hub.scene_manager.removeMemberFromScene, 
+            self.coordinator.api_hub.remove_member_from_scene, 
             self.coordinator.data[self.idx]["data"]["id"], self._activePreset, True
         )
         await self.coordinator.async_request_refresh()
@@ -253,9 +249,8 @@ class HeatAppClimateEntity(CoordinatorEntity, ClimateEntity):
         """Force device into tracking standby configuration."""
         if self._activePreset in [PRESET_GO, PRESET_HOLIDAY, PRESET_STANDBY]:
             return
-        # Updated to access api_hub
         await self.hass.async_add_executor_job(
-            self.coordinator.api_hub.scene_manager.addMemberToScene, 
+            self.coordinator.api_hub.add_member_to_scene, 
             self.coordinator.data[self.idx]["data"]["id"], "Standby", True
         )
         await self.coordinator.async_request_refresh()
