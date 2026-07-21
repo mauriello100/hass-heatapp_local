@@ -15,7 +15,7 @@ from homeassistant.core import HomeAssistant
 _LOGGER = logging.getLogger(__name__)
 
 class HeatappHub:
-    """Wrapper class to handle Heatapp API communication."""
+    """Wrapper class to handle Heatapp API communication safely."""
 
     def __init__(self, hass: HomeAssistant, host: str, user: str, password: str) -> None:
         """Initialize the Hub."""
@@ -29,20 +29,25 @@ class HeatappHub:
         self.api = None
         self.scene_manager = None
 
+    def _ensure_session(self) -> bool:
+        """Ensure active session exists, re-authenticating if necessary."""
+        if self.api is None or self.scene_manager is None:
+            try:
+                credentials = self.login_manager.authorize(self.user, self.password)
+                self.api = ApiMethods(credentials, self.host)
+                self.scene_manager = SceneManager(self.api)
+            except Exception as e:
+                _LOGGER.error("Failed to authenticate or initialize API: %s", e)
+                self.api = None
+                self.scene_manager = None
+                return False
+        return True
+
     def fetch_data_sync(self) -> list:
         """Synchronously initialize the API and fetch data with auto-reauthentication."""
         with self._lock:
-            # Initialize API only if not already done or if session was invalidated
-            if self.api is None or self.scene_manager is None:
-                try:
-                    credentials = self.login_manager.authorize(self.user, self.password)
-                    self.api = ApiMethods(credentials, self.host)
-                    self.scene_manager = SceneManager(self.api)
-                except Exception as e:
-                    _LOGGER.error("Failed to authenticate or initialize API: %s", e)
-                    self.api = None
-                    self.scene_manager = None
-                    return []
+            if not self._ensure_session():
+                return []
 
             # --- API DATA FETCHING ---
             try:
@@ -52,18 +57,14 @@ class HeatappHub:
                     _LOGGER.debug("API returned no data.")
                     return []
 
-                # Restructure the raw data into the format expected by climate.py
                 formatted_data = []
 
-                # Scenario 1: API returns a direct list (e.g., [{}, {}])
                 if isinstance(raw_rooms, list):
                     for room in raw_rooms:
                         formatted_data.append({
                             "name": room.get("name", "Unknown Room"),
                             "data": room
                         })
-                
-                # Scenario 2: API returns a dictionary (e.g., {'rooms': [{}, {}]})
                 elif isinstance(raw_rooms, dict):
                     rooms_list = raw_rooms.get("rooms") or raw_rooms.get("roomList") or []
                     for room in rooms_list:
@@ -76,7 +77,6 @@ class HeatappHub:
 
             except (RemoteDisconnected, requests.exceptions.RequestException) as e:
                 _LOGGER.warning("Connection lost or dropped by Heatapp device, resetting session: %s", e)
-                # Invalidate session so it triggers a fresh login token challenge on the next poll
                 self.api = None
                 self.scene_manager = None
                 return []
@@ -86,3 +86,52 @@ class HeatappHub:
             except Exception as e:
                 _LOGGER.error("Unexpected error fetching data: %s", e)
                 return []
+
+    def get_switching_times(self, room_name: str, room_id: int) -> dict:
+        """Safely fetch switching times for a room."""
+        with self._lock:
+            if not self._ensure_session():
+                return {"success": False}
+            try:
+                return self.api.getSwitchingTimes(room_name, room_id)
+            except Exception as e:
+                _LOGGER.error("Failed to fetch switching times: %s", e)
+                self.api = None
+                self.scene_manager = None
+                return {"success": False}
+
+    def set_temperature(self, temperature: float, room_id: int) -> None:
+        """Safely set room temperature."""
+        with self._lock:
+            if not self._ensure_session():
+                return
+            try:
+                self.api.setTemp(temperature, room_id)
+            except Exception as e:
+                _LOGGER.error("Failed to set temperature: %s", e)
+                self.api = None
+                self.scene_manager = None
+
+    def add_member_to_scene(self, room_id: int, preset_mode: str, force: bool) -> None:
+        """Safely add room to a preset/scene."""
+        with self._lock:
+            if not self._ensure_session():
+                return
+            try:
+                self.scene_manager.addMemberToScene(room_id, preset_mode, force)
+            except Exception as e:
+                _LOGGER.error("Failed to add member to scene: %s", e)
+                self.api = None
+                self.scene_manager = None
+
+    def remove_member_from_scene(self, room_id: int, preset_mode: str, force: bool) -> None:
+        """Safely remove room from a preset/scene."""
+        with self._lock:
+            if not self._ensure_session():
+                return
+            try:
+                self.scene_manager.removeMemberFromScene(room_id, preset_mode, force)
+            except Exception as e:
+                _LOGGER.error("Failed to remove member from scene: %s", e)
+                self.api = None
+                self.scene_manager = None
